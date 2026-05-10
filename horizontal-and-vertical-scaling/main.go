@@ -9,6 +9,7 @@ import (
 	"time"
 
 	_ "github.com/lib/pq" // драйвер PostgreSQL
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var db *sql.DB
@@ -48,8 +49,8 @@ func main() {
 	initDB()
 	defer db.Close()
 
-	serverID := os.Getenv("SERVER_ID")
-	// serverID, _ := os.Hostname()
+	// serverID := os.Getenv("SERVER_ID")
+	serverID, _ := os.Hostname()
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -91,6 +92,8 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("healthy"))
 	})
+
+	http.Handle("/metrics", promhttp.Handler())
 
 	log.Printf("Server %s starting on :%s\n", serverID, port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))

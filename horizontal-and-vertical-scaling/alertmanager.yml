@@ -1,0 +1,31 @@
+global:
+  resolve_timeout: 5m
+
+# Секция маршрутизации - ГДЕ ОШИБКА
+route:
+  group_by: ['alertname']
+  group_wait: 10s      # Сколько ждать перед первой отправкой
+  group_interval: 10s  # Пауза между группами алертов
+  repeat_interval: 1m  # Как часто повторять, если нагрузка не падает
+  
+  receiver: 'default-receiver' # Куда слать, если не подошло под правила ниже
+
+  routes:
+    - match:
+        alertname: HighLoad
+      receiver: 'scale-up'
+    - match:
+        alertname: LowLoad
+      receiver: 'scale-down'
+
+receivers:
+  - name: 'default-receiver'
+    # Можно оставить пустым или направить в лог
+
+  - name: 'scale-up'
+    webhook_configs:
+      - url: 'http://autoscaler:8888/scale?dir=up'
+
+  - name: 'scale-down'
+    webhook_configs:
+      - url: 'http://autoscaler:8888/scale?dir=down'

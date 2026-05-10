@@ -53,6 +53,46 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro  # :ro добавит режим "только чтение"
     restart: unless-stopped
 
+  autoscaler:
+    build: ./autoscaler
+    image: my-autoscaler:latest
+    networks:
+      - app_network
+    ports:
+      - "8888:8888"  # Пробрасываем порт наружу
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+
+  prometheus:
+    image: prom/prometheus
+    networks:
+      - app_network
+    ports:
+      - "9090:9090"  # Добавьте эту строку
+    configs:
+      - source: prom_conf
+        target: /etc/prometheus/prometheus.yml
+      - source: prom_alerts
+        target: /etc/prometheus/alerts.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    deploy:
+      replicas: 1
+
+  alertmanager:
+    image: prom/alertmanager
+    networks:
+      - app_network
+    configs:
+      - source: alert_conf
+        target: /etc/alertmanager/alertmanager.yml
+    deploy:
+      replicas: 1
+
 volumes:
   postgres_data:
 
@@ -60,3 +100,11 @@ networks:
   app_network:
     driver: overlay
     attachable: true
+
+configs:
+  prom_conf:
+    file: ./prometheus.yml
+  prom_alerts:
+    file: ./alerts.yml
+  alert_conf:
+    file: ./alertmanager.yml

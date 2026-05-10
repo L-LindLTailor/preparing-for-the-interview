@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: 'go-server'
+    dns_sd_configs:
+      - names:
+          - 'tasks.go-server' # Магия Swarm: находит IP всех реплик
+        type: 'A'
+        port: 8080
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - 'alertmanager:9093'
+
+rule_files:
+  - "alerts.yml"

@@ -1,0 +1,14 @@
+groups:
+  - name: autoscaling
+    rules:
+    - alert: HighLoad
+      expr: avg(rate(process_cpu_seconds_total[1m])) > 0.5
+      for: 15s
+      labels:
+        service: "go-server"
+    
+    - alert: LowLoad
+      expr: avg(rate(process_cpu_seconds_total[1m])) < 0.1
+      for: 2m # Ждем дольше, чтобы не было "качелей"
+      labels:
+        service: "go-server"
