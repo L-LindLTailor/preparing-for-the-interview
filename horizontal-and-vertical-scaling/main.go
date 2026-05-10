@@ -22,21 +22,26 @@ func initDB() {
 	var err error
 	db, err = sql.Open("postgres", dbURL)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Fatalf("Critical error opening DB: %v", err)
 	}
 
-	// Настройка пула соединений
-	db.SetMaxOpenConns(25)                 // макс. открытых соединений
-	db.SetMaxIdleConns(25)                 // макс. idle соединений
-	db.SetConnMaxLifetime(5 * time.Minute) // время жизни соединения
-	db.SetConnMaxIdleTime(1 * time.Minute) // время простоя соединения
+	// Настройка пула
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(25)
 
-	// Проверка подключения
-	err = db.Ping()
-	if err != nil {
-		log.Fatalf("Failed to ping database: %v", err)
+	// --- ЦИКЛ ОЖИДАНИЯ БАЗЫ (RETRY LOGIC) ---
+	for i := 1; i <= 10; i++ {
+		err = db.Ping()
+		if err == nil {
+			log.Println("Database connection established!")
+			return
+		}
+		log.Printf("Попытка %d: База еще не готова. Ждем 5 сек... (%v)", i, err)
+		time.Sleep(5 * time.Second)
 	}
-	log.Println("Database connection established")
+
+	// Если за 50 секунд не подключились — тогда падаем
+	log.Fatalf("Could not connect to DB after 10 attempts")
 }
 
 func main() {
@@ -44,6 +49,7 @@ func main() {
 	defer db.Close()
 
 	serverID := os.Getenv("SERVER_ID")
+	// serverID, _ := os.Hostname()
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -76,6 +82,12 @@ func main() {
 	})
 
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		// Теперь healthcheck в Swarm будет знать, если база отвалится
+		if err := db.Ping(); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			w.Write([]byte("unhealthy"))
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("healthy"))
 	})

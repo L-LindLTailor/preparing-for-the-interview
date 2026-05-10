@@ -1,5 +1,5 @@
 FROM golang:1.23.1-alpine AS builder
-
+RUN apk add --no-cache curl
 WORKDIR /app
 COPY . .
 RUN go mod tidy
