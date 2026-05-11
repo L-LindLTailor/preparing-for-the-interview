@@ -13,7 +13,10 @@ services:
     environment:
       - SERVER_ID={{.Task.Slot}}
       - PORT=8080
-      - DATABASE_URL=postgres://user:password@postgres:5432/myapp?sslmode=disable
+      - DATABASE_URL=postgres://user:password@postgres-master:5432/myapp?sslmode=disable
+      - READ_DATABASE_URL=postgres://user:password@postgres-slave:5432/myapp?sslmode=disable
+      - REDIS_URL=redis:6379
+      - KAFKA_BROKER=kafka:9092
     networks:
       - app_network
     restart: unless-stopped
@@ -25,20 +28,44 @@ services:
         max_attempts: 3
         window: 120s
 
-  postgres:
-    image: postgres:15-alpine
-    container_name: postgres_db
+  postgres-master:
+    image: bitnami/postgresql:latest
     networks:
       - app_network
-    restart: unless-stopped
+    user: root # Даем права на исправление владельца папки
     environment:
-      POSTGRES_DB: myapp
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
+      - BITNAMI_DEBUG=true # Включит подробные логи, если упадет
+      - POSTGRESQL_PBA_METHOD=md5 # Метод аутентификации
+      - POSTGRESQL_USERNAME=user
+      - POSTGRESQL_PASSWORD=password
+      - POSTGRESQL_DATABASE=myapp
+      - POSTGRESQL_REPLICATION_MODE=master
+      - POSTGRESQL_REPLICATION_USER=repl_user
+      - POSTGRESQL_REPLICATION_PASSWORD=repl_password
+      - ALLOW_EMPTY_PASSWORD=yes # Чтобы Bitnami не ругался на пустой пароль админа
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+      - postgres_master_data:/bitnami/postgresql
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+
+  postgres-slave:
+    image: bitnami/postgresql:latest
+    networks:
+      - app_network
+    environment:
+      - POSTGRESQL_USERNAME=user
+      - POSTGRESQL_PASSWORD=password
+      - POSTGRESQL_DATABASE=myapp
+      - POSTGRESQL_MASTER_HOST=postgres-master
+      - POSTGRESQL_REPLICATION_MODE=slave
+      - POSTGRESQL_REPLICATION_USER=repl_user
+      - POSTGRESQL_REPLICATION_PASSWORD=repl_password
+      - POSTGRESQL_MASTER_PORT_NUMBER=5432
+    deploy:
+      replicas: 1 # Можно масштабировать для чтения!
+    depends_on:
+      - postgres-master
 
   load-balancer:
     image: nginx:alpine
@@ -92,9 +119,71 @@ services:
         target: /etc/alertmanager/alertmanager.yml
     deploy:
       replicas: 1
+  redis:
+    image: redis:7-alpine
+    networks:
+      - app_network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+    # Если захочешь, чтобы кэш сохранялся после перезагрузки:
+    volumes:
+     - redis_data:/data
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    networks:
+      - app_network
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin # Пароль для входа
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+
+  zookeeper:
+    image: bitnami/zookeeper:latest
+    user: root # Сразу добавляем, чтобы не было Permission Denied
+    networks:
+      - app_network
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+
+  kafka:
+    image: bitnami/kafka:latest
+    networks:
+      - app_network
+    environment:
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_CFG_NODE_ID=1
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - ALLOW_PLAINTEXT_LISTENER=yes
+    depends_on:
+      - zookeeper
+
+  producer:
+      build: ./producer
+      image: my-producer:latest
+      networks:
+        - app_network
+      environment:
+        - KAFKA_BROKER=kafka:9092
+        - TRANSACTIONAL_ID=producer-1
+      deploy:
+        replicas: 1
+      depends_on:
+        - kafka
 
 volumes:
-  postgres_data:
+  postgres_master_data:
+  redis_data:
 
 networks:
   app_network:
