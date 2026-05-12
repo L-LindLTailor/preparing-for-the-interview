@@ -26,28 +26,28 @@ func main() {
 	}
 	defer p.Close()
 
-	// Инициализируем транзакции
-	for i := 0; i < 10; i++ {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	log.Println("Initializing Kafka transactions...")
+	for {
+		// Даем фоновым Си-потокам 15 секунд на один чистый запрос
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		err = p.InitTransactions(ctx)
 		cancel()
 
 		if err == nil {
-			break
+			log.Println("Kafka transactions initialized successfully!")
+			break // ТОЛЬКО ТЕПЕРЬ выходим из цикла к отправке сообщений
 		}
 
-		log.Printf("Waiting for Kafka transaction init... (%v)", err)
-		time.Sleep(3 * time.Second)
+		log.Printf("Kafka not ready yet (err: %v). Retrying in 5 seconds...", err)
+		time.Sleep(5 * time.Second)
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 
 	topic := "events"
 	for {
 		// Начинаем транзакцию
 		if err := p.BeginTransaction(); err != nil {
 			log.Printf("Error beginning transaction: %v", err)
+			time.Sleep(5 * time.Second)
 			continue
 		}
 
@@ -56,14 +56,16 @@ func main() {
 			TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 			Value:          []byte(msg),
 		}, nil)
-
 		if err != nil {
-			p.AbortTransaction(ctx)
 			log.Printf("Produce failed: %v", err)
+		}
+
+		err = p.CommitTransaction(context.Background())
+		if err != nil {
+			log.Printf("Commit failed: %v", err)
+			p.AbortTransaction(context.Background()) // Обязательно откатываем, если не смогли закоммитить
 		} else {
-			// Коммитим (Exactly-Once гарантируется здесь)
-			p.CommitTransaction(ctx)
-			log.Printf("Sent: %s", msg)
+			log.Printf("Sent and Committed: %s", msg)
 		}
 
 		time.Sleep(5 * time.Second)

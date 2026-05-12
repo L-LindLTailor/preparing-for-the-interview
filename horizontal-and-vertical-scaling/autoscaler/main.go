@@ -7,9 +7,12 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 )
+
+const broker = "kafka:9092"
 
 func scaleService(w http.ResponseWriter, r *http.Request) {
 	direction := r.URL.Query().Get("dir")
@@ -47,6 +50,7 @@ func scaleService(w http.ResponseWriter, r *http.Request) {
 		switch direction {
 		case "up":
 			newReplicas = currentReplicas + 1
+			updateKafkaPartitions(int(newReplicas))
 		case "down":
 			if currentReplicas <= 3 {
 				fmt.Fprintf(w, "Minimum replicas reached: %d", currentReplicas)
@@ -82,6 +86,33 @@ func scaleService(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Service scaled to %d replicas", newReplicas)
 	fmt.Fprintf(w, "OK: %d", newReplicas)
+}
+
+func updateKafkaPartitions(newReplicas int) {
+
+	admin, err := kafka.NewAdminClient(&kafka.ConfigMap{"bootstrap.servers": broker})
+	if err != nil {
+		log.Printf("Failed to create AdminClient: %v", err)
+		return
+	}
+	defer admin.Close()
+
+	ctx := context.Background()
+
+	// Увеличиваем партиции до количества реплик
+	// Помни: Kafka позволяет только УВЕЛИЧИВАТЬ
+	results, err := admin.CreatePartitions(ctx, []kafka.PartitionsSpecification{
+		{
+			Topic:      "events",
+			IncreaseTo: newReplicas,
+		},
+	})
+
+	if err != nil {
+		log.Printf("Kafka partitions update request failed: %v", err)
+	} else {
+		log.Printf("Kafka partitions updated to %d: %v", newReplicas, results)
+	}
 }
 
 func main() {

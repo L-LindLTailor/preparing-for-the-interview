@@ -141,29 +141,43 @@ func main() {
 	go func() {
 		broker := os.Getenv("KAFKA_BROKER")
 
-	EXIT:
+		// 1. Создаем консьюмер ОДИН РАЗ
+		c, err := kafka.NewConsumer(&kafka.ConfigMap{
+			"bootstrap.servers":  broker,
+			"group.id":           "go-server-group-" + serverID,
+			"auto.offset.reset":  "earliest",
+			"isolation.level":    "read_committed",
+			"enable.auto.commit": true,
+		})
+
+		if err != nil {
+			log.Fatalf("Failed to create consumer: %v", err)
+		}
+		defer c.Close()
+
+		// 2. Подписываемся на топик ОДИН РАЗ
+		err = c.SubscribeTopics([]string{"events"}, nil)
+		if err != nil {
+			log.Fatalf("Failed to subscribe: %v", err)
+		}
+
+		log.Println("Kafka Consumer started and subscribed to 'events'")
+
+		// 3. А вот теперь бесконечный цикл ЧТЕНИЯ сообщений
 		for {
-			c, err := kafka.NewConsumer(&kafka.ConfigMap{
-				"bootstrap.servers": broker,
-				"group.id":          "go-server-group",
-				"auto.offset.reset": "earliest",
-				// Критически важно для Exactly-Once:
-				// Читать только сообщения из успешно завершенных (committed) транзакций
-				"isolation.level": "read_committed",
-			})
-
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-
-			log.Println(c)
-
 			select {
 			case <-exit:
-				break EXIT
+				log.Println("Stopping consumer...")
+				return
 			default:
-				time.Sleep(time.Second * 3)
+				// ReadMessage блокируется и ждет сообщения (таймаут 1 сек)
+				msg, err := c.ReadMessage(time.Second)
+				if err == nil {
+					fmt.Printf("Received message: %s\n", string(msg.Value))
+				} else if !err.(kafka.Error).IsTimeout() {
+					// Если ошибка не таймаут (который нормален) — логируем
+					log.Printf("Consumer error: %v\n", err)
+				}
 			}
 		}
 	}()
