@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	http.HandleFunc("/", handleRequest)
+	http.HandleFunc("/token-bucket", TokenBucket)
 
 	log.Println("Сервер запущен на порту :8080...")
 	log.Fatal(http.ListenAndServe(":8080", nil))
@@ -22,7 +22,7 @@ var globalLimiter = tokenbucket.NewTokenBucket(5000, 5000.0)
 // Каждый отдельный пользователь не может делать больше 5 запросов в секунду.
 var userManager = tokenbucket.NewRateLimiterManager(5, 5.0)
 
-func handleRequest(w http.ResponseWriter, r *http.Request) {
+func TokenBucket(w http.ResponseWriter, r *http.Request) {
 	// СЛОЙ 1: Глобальная защита сервера
 	// Если набежал миллион пользователей, этот барьер пропустит только первые 5000,
 	// а остальные 995 000 будут мгновенно сброшены здесь, не нагружая систему.
