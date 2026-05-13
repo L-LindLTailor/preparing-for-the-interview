@@ -1,19 +1,58 @@
+# ==========================================
+# ГЛОБАЛЬНЫЕ НАСТРОЙКИ / GLOBAL SETTINGS
+# ==========================================
 global:
+  # Интервал сбора метрик: Prometheus будет опрашивать все целевые сервисы каждые 5 секунд.
+  # Scrape interval: Prometheus will pull metrics from all targets every 5 seconds.
   scrape_interval: 5s
 
+# ==========================================
+# СБОР МЕТРИК / SCRAPE CONFIGURATIONS
+# ==========================================
 scrape_configs:
+  # Уникальное имя задачи для группировки собираемых метрик в базе данных (TSDB).
+  # Unique job name to group collected metrics in the time-series database (TSDB).
   - job_name: 'go-server'
+    
+    # Использование динамического обнаружения сервисов (Service Discovery) через DNS.
+    # Configures dynamic Service Discovery via DNS.
     dns_sd_configs:
+      # Запрашиваем у встроенного DNS-сервера Docker Swarm список IP-адресов через префикс 'tasks.'.
+      # Магия Swarm: DNS возвращает актуальный список IP всех запущенных реплик Go-приложения.
+      # Queries Docker Swarm's built-in DNS using the 'tasks.' prefix.
+      # Swarm magic: DNS returns the up-to-date list of IPs for all running Go replicas.
       - names:
-          - 'tasks.go-server' # Магия Swarm: находит IP всех реплик
+          - 'tasks.go-server'
+        
+        # Тип DNS-записи 'A' используется для получения IPv4-адресов контейнеров.
+        # DNS record type 'A' is used to resolve IPv4 addresses of the containers.
         type: 'A'
+        
+        # Порт, на котором Go-приложение обрабатывает эндпоинт /metrics.
+        # The port where the Go application exposes the /metrics endpoint.
         port: 8080
 
+# ==========================================
+# ИНТЕГРАЦИЯ С ОПОВЕЩЕНИЯМИ / ALERTING SYSTEM
+# ==========================================
 alerting:
+  # Настройка каналов отправки триггеров при срабатывании правил алертинга.
+  # Configuration for routing active triggers when alerting rules fire.
   alertmanagers:
+    # Статическое указание адреса сервера Alertmanager в сети.
+    # Static configuration for the Alertmanager server network address.
     - static_configs:
+        # Сетевое имя и стандартный порт сервиса Alertmanager внутри сети Overlay.
+        # The network hostname and default port of the Alertmanager service inside the Overlay network.
         - targets:
           - 'alertmanager:9093'
 
+# ==========================================
+# ПОДКЛЮЧЕНИЕ ПРАВИЛ / RULE FILES DEFINITION
+# ==========================================
+# Список внешних файлов, содержащих условия срабатывания алертов (триггеров).
+# List of external files containing alert conditions (triggers) to evaluate.
 rule_files:
+  # Подключаем файл с правилами автоматического масштабирования (HighLoad / LowLoad).
+  # Links the file containing autoscaling rules (HighLoad / LowLoad).
   - "alerts.yml"

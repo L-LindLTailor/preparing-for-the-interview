@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/confluentinc/confluent-kafka-go/v2 v2.14.1
 	github.com/docker/docker v27.1.1+incompatible
+	go.uber.org/automaxprocs v1.6.0
 )
 
 require (

@@ -1,14 +1,65 @@
+# ==========================================================
+# ГРУППЫ ПРАВИЛ Prometheus / PROMETHEUS RULE GROUPS
+# ==========================================================
+# Список логических групп, объединяющих связанные правила.
+# A list of logical groups that bundle related alerting rules together.
 groups:
+  # Название группы правил, отвечающей за автоматическое масштабирование.
+  # The name of the rule group responsible for autoscaling operations.
   - name: autoscaling
+    
+    # Список индивидуальных правил оповещения (триггеров) внутри группы.
+    # The list of individual alerting rules (triggers) within the group.
     rules:
+    
+    # ------------------------------------------------------
+    # ПРАВИЛО 1: Высокая нагрузка / RULE 1: High Load (Scale Up)
+    # ------------------------------------------------------
+    # Уникальное имя алерта, по которому Alertmanager будет маршрутизировать запросы.
+    # Unique alert name used by Alertmanager to route the notification.
     - alert: HighLoad
+      
+      # PromQL-выражение (метрика):
+      # process_cpu_seconds_total — сколько секунд процессора потребил Go-процесс.
+      # rate(...[1m]) — вычисляет среднюю скорость роста (загрузку CPU) за последнюю 1 минуту.
+      # avg(...) — находит среднее арифметическое значение загрузки процессора среди ВСЕХ живых реплик.
+      # > 0.5 — триггер сработает, если средняя загрузка превысит 50% от мощности ядра.
+      # PromQL expression (metric):
+      # process_cpu_seconds_total — CPU time consumed by the Go process in seconds.
+      # rate(...[1m]) — calculates the per-second average rate of CPU usage over the last 1 minute.
+      # avg(...) — computes the arithmetic mean of CPU usage across ALL live service replicas.
+      # > 0.5 — the trigger fires if the average CPU load exceeds 50% of a core's capacity.
       expr: avg(rate(process_cpu_seconds_total[1m])) > 0.5
+      
+      # Время ожидания (статус Pending). Алерт должен быть стабильно активен в течение 15 секунд, 
+      # прежде чем перейти в состояние Firing и улететь в Alertmanager. Защита от случайных микро-пиков.
+      # Duration threshold (Pending state). The alert must remain active continuously for 15 seconds 
+      # before changing to Firing state and being sent to Alertmanager. Protects against brief micro-spikes.
       for: 15s
+      
+      # Дополнительные метаданные (теги), прикрепляемые к алерту для фильтрации в экосистеме.
+      # Additional metadata (labels) attached to the alert for downstream filtering.
       labels:
+        # Указывает, какой именно сервис перегружен (используется для интеграции).
+        # Indicates exactly which service is overloaded (used for target mapping).
         service: "go-server"
     
+    # ------------------------------------------------------
+    # ПРАВИЛО 2: Низкая нагрузка / RULE 2: Low Load (Scale Down)
+    # ------------------------------------------------------
+    # Уникальное имя алерта для плавного сжатия (уменьшения) реплик кластера.
+    # Unique alert name for graceful downscaling (reducing cluster replicas).
     - alert: LowLoad
+      
+      # PromQL-выражение: триггер сработает, если средняя загрузка CPU по всем репликам упадет ниже 10% (< 0.1).
+      # PromQL expression: the trigger fires if the average CPU load across all replicas drops below 10% (< 0.1).
       expr: avg(rate(process_cpu_seconds_total[1m])) < 0.1
-      for: 2m # Ждем дольше, чтобы не было "качелей"
+      
+      # Время ожидания выставлено на 2 минуты. Мы намеренно ждем дольше, чтобы убедиться, 
+      # что спад нагрузки стабилен. Это предотвращает эффект «качелей» (Thrashing) — постоянный быстрый запуск и остановку контейнеров.
+      # Duration threshold is set to 2 minutes. We intentionally wait longer to ensure the load drop 
+      # is stable. This prevents thrashing — constant rapid starting and stopping of containers.
+      for: 2m
+      
       labels:
         service: "go-server"

@@ -1,31 +1,86 @@
+# ==========================================
+# ГЛОБАЛЬНЫЕ НАСТРОЙКИ / GLOBAL SETTINGS
+# ==========================================
 global:
+  # Время, по истечении которого алерт считается разрешенным (resolved), 
+  # если от Prometheus больше не поступало обновлений по нему.
+  # The time after which an alert is considered resolved if no updates 
+  # for it have been received from Prometheus.
   resolve_timeout: 5m
 
-# Секция маршрутизации - ГДЕ ОШИБКА
+# ==========================================
+# МАРШРУТИЗАЦИЯ АЛЕРТОВ / ALERT ROUTING
+# ==========================================
+# Корневой маршрутизатор, который определяет, куда направлять приходящие алерты.
+# The root router that defines where to send incoming alerts.
 route:
+  # Группировка алертов: все уведомления с одинаковым именем 'alertname' 
+  # будут объединены в один пакет (batch).
+  # Alert grouping: notifications with the same 'alertname' 
+  # will be merged into a single batch.
   group_by: ['alertname']
-  group_wait: 10s      # Сколько ждать перед первой отправкой
-  group_interval: 10s  # Пауза между группами алертов
-  repeat_interval: 1m  # Как часто повторять, если нагрузка не падает
-  
-  receiver: 'default-receiver' # Куда слать, если не подошло под правила ниже
 
+  # Время ожидания перед первой отправкой группы. Позволяет собрать несколько 
+  # похожих алертов вместе, чтобы не спамить вебхуки по одному.
+  # How long to wait before sending the first notification for a group. 
+  # Allows buffering similar alerts to avoid spamming webhooks.
+  group_wait: 10s
+
+  # Пауза перед отправкой уведомления о появлении нового алерта в уже существующей группе.
+  # How long to wait before sending a notification about a new alert added to an existing group.
+  group_interval: 10s
+
+  # Интервал повторной отправки уведомления, если триггер алерта всё еще активен (нагрузка не упала).
+  # How long to wait before re-sending a notification if the alert trigger is still active.
+  repeat_interval: 1m
+  
+  # Получатель по умолчанию. Сюда уходят алерты, которые не подошли ни под один подмаршрут (sub-route) ниже.
+  # The default receiver. Alerts that do not match any sub-routes below are sent here.
+  receiver: 'default-receiver'
+
+  # Список подмаршрутов со специфичными правилами фильтрации.
+  # List of sub-routes with specific filtering rules.
   routes:
+    # Если имя пришедшего алерта в точности равно 'HighLoad':
+    # If the incoming alert name is exactly 'HighLoad':
     - match:
         alertname: HighLoad
+      # Отправляем этот алерт на обработчик 'scale-up'.
+      # Send this alert to the 'scale-up' receiver.
       receiver: 'scale-up'
+
+    # Если имя пришедшего алерта в точности равно 'LowLoad':
+    # If the incoming alert name is exactly 'LowLoad':
     - match:
         alertname: LowLoad
+      # Отправляем этот алерт на обработчик 'scale-down'.
+      # Send this alert to the 'scale-down' receiver.
       receiver: 'scale-down'
 
+# ==========================================
+# ПОЛУЧАТЕЛИ / RECEIVERS (ENDPOINTS)
+# ==========================================
+# Описание каналов интеграции (куда физически слать HTTP-запросы).
+# Definition of integration channels (where to physically send HTTP requests).
 receivers:
+  # Дефолтный получатель, в нашем случае выступает в роли заглушки.
+  # The default receiver, acting as a placeholder in our case.
   - name: 'default-receiver'
-    # Можно оставить пустым или направить в лог
 
+  # Получатель для масштабирования вверх.
+  # Receiver for scaling up.
   - name: 'scale-up'
+    # Настройка отправки HTTP POST запроса (вебхука).
+    # Configuration for sending an HTTP POST request (webhook).
     webhook_configs:
+      # URL нашего кастомного автоскейлера внутри Overlay-сети с флагом dir=up.
+      # The URL of our custom autoscaler inside the Overlay network with the dir=up flag.
       - url: 'http://autoscaler:8888/scale?dir=up'
 
+  # Получатель для масштабирования вниз.
+  # Receiver for scaling down.
   - name: 'scale-down'
     webhook_configs:
+      # URL нашего кастомного автоскейлера с флагом dir=down для плавного сжатия системы.
+      # The URL of our custom autoscaler with the dir=down flag for graceful downscaling.
       - url: 'http://autoscaler:8888/scale?dir=down'

@@ -1,54 +1,81 @@
+# ==============================================================================
+# ОПРЕДЕЛЕНИЕ СЕРВИСОВ КЛАСТЕРА / CLUSTER SERVICES DEFINITION
+# ==============================================================================
 services:
+  # ----------------------------------------------------------------------------
+  # Слой Приложения / Application Layer: Go Web Server
+  # ----------------------------------------------------------------------------
   go-server:
-    image: my-go-app:latest  # Добавьте это!
-    build: .
+    image: my-go-app:latest  # Имя готового Docker-образа в кластере. / Target production image name in the cluster.
+    build: .                 # Сборка образа на основе Dockerfile в текущей папке. / Build image from Dockerfile in current root.
     healthcheck:
-      # Проверка через открытие TCP-порта (не требует curl)
+      # Проверяем доступность TCP-порта приложения через утилиту netcat (nc). Не требует curl.
+      # Verifies application TCP port availability via netcat (nc). Does not require curl.
       test: ["CMD-SHELL", "nc -z localhost 8080 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
-    hostname: server-{{.Task.Slot}}
+      interval: 10s       # Интервал между проверками здоровья. / Time interval between healthchecks.
+      timeout: 5s         # Максимальное время ожидания ответа на проверку. / Maximum timeout to await a response.
+      retries: 5          # Количество неудач подряд, после которых контейнер считается неисправным. / Failures before unhealthy status.
+      start_period: 60s   # Время после старта контейнера, когда неудачи проверок игнорируются. / Initialization period for boot-up.
+    hostname: server-{{.Task.Slot}} # Динамический шаблон Swarm для назначения имени хоста реплики. / Dynamic Swarm template for replica hostname.
     environment:
-      - SERVER_ID={{.Task.Slot}}
+      - SERVER_ID={{.Task.Slot}} # Номер слота реплики в Swarm (1, 2, 3...). / Swarm replica slot number (1, 2, 3...).
       - PORT=8080
-      - DATABASE_URL=postgres://user:password@postgres-master:5432/myapp?sslmode=disable
-      - READ_DATABASE_URL=postgres://user:password@postgres-slave:5432/myapp?sslmode=disable
+      - DATABASE_URL=postgres://user:password@postgres-master:5432/myapp?sslmode=disable # Строка подключения к Master-БД. / Connection string to Master DB.
+      - READ_DATABASE_URL=postgres://user:password@postgres-slave:5432/myapp?sslmode=disable # Строка подключения к Slave-БД. / Connection string to Slave DB.
       - REDIS_URL=redis:6379
       - KAFKA_BROKER=kafka:9092
     networks:
-      - app_network
+      - app_network       # Подключение к общей изолированной оверлейной сети. / Connection to shared isolated overlay network.
     restart: unless-stopped
     deploy:
-      replicas: 3
+      replicas: 3         # Начальное количество реплик сервиса при деплое. / Initial replica count at deployment.
+      resources:
+        limits:
+          cpus: '0.50'     # Жесткий потолок: максимум 50% от мощности одного ядра CPU
+          memory: 256M     # Жесткий потолок: максимум 256 Мегабайт оперативной памяти
+        reservations:
+          cpus: '0.10'     # Минимальная гарантия: 10% ядра CPU резервируется при старте
+          memory: 64M      # Минимальная гарантия: 64 Мегабайта RAM резервируется при старте
       restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
+        condition: on-failure # Перезапускать контейнеры только при аварийном завершении. / Restart only if application crashes.
+        delay: 5s             # Пауза перед попыткой перезапуска. / Time to wait before restart attempts.
+        max_attempts: 3       # Лимит попыток перезапуска в рамках одного окна. / Maximum number of restart attempts.
+        window: 120s          # Временное окно для оценки успешности перезапусков. / Time window to assess restart success.
 
+  # ----------------------------------------------------------------------------
+  # Хранилище: Основная База Данных (Запись) / Storage: Postgres Master (Writes)
+  # ----------------------------------------------------------------------------
   postgres-master:
     image: bitnami/postgresql:latest
     networks:
       - app_network
-    user: root # Даем права на исправление владельца папки
+    user: root # Запуск от root для обхода ограничений прав доступа к ФС в Windows/WSL2. / Run as root to bypass Windows/WSL2 filesystem permission issues.
     environment:
-      - BITNAMI_DEBUG=true # Включит подробные логи, если упадет
-      - POSTGRESQL_PBA_METHOD=md5 # Метод аутентификации
+      - BITNAMI_DEBUG=true
+      - POSTGRESQL_PBA_METHOD=md5
       - POSTGRESQL_USERNAME=user
       - POSTGRESQL_PASSWORD=password
       - POSTGRESQL_DATABASE=myapp
-      - POSTGRESQL_REPLICATION_MODE=master
+      - POSTGRESQL_REPLICATION_MODE=master        # Конфигурирует БД как мастер-узел репликации. / Configures node as replication master.
       - POSTGRESQL_REPLICATION_USER=repl_user
       - POSTGRESQL_REPLICATION_PASSWORD=repl_password
-      - ALLOW_EMPTY_PASSWORD=yes # Чтобы Bitnami не ругался на пустой пароль админа
+      - ALLOW_EMPTY_PASSWORD=yes
     volumes:
-      - postgres_master_data:/bitnami/postgresql
+      - postgres_master_data:/bitnami/postgresql   # Именованный том для сохранения данных БД. / Named volume for data persistence.
     deploy:
       placement:
-        constraints: [node.role == manager]
+        constraints: [node.role == manager]       # Запуск строго на ноде-менеджере Swarm. / Restrict placement to Swarm managers.
+      resources:
+        limits:
+          cpus: '2.0'      # Потолок: 2 полноценных ядра процессора
+          memory: 2G       # Потолок: 2 Гигабайта оперативной памяти
+        reservations:
+          cpus: '1.0'      # Гарантия при старте: одно ядра
+          memory: 512M     # Гарантия при старте: 512 Мегабайт RAM
 
+  # ----------------------------------------------------------------------------
+  # Хранилище: Реплика Базы Данных (Чтение) / Storage: Postgres Slave (Reads)
+  # ----------------------------------------------------------------------------
   postgres-slave:
     image: bitnami/postgresql:latest
     networks:
@@ -57,59 +84,71 @@ services:
       - POSTGRESQL_USERNAME=user
       - POSTGRESQL_PASSWORD=password
       - POSTGRESQL_DATABASE=myapp
-      - POSTGRESQL_MASTER_HOST=postgres-master
-      - POSTGRESQL_REPLICATION_MODE=slave
+      - POSTGRESQL_MASTER_HOST=postgres-master    # Сетевое имя мастер-узла для репликации. / Network hostname of the replication master.
+      - POSTGRESQL_REPLICATION_MODE=slave         # Конфигурирует БД как слейв-узел для чтения. / Configures node as read-only slave replica.
       - POSTGRESQL_REPLICATION_USER=repl_user
       - POSTGRESQL_REPLICATION_PASSWORD=repl_password
       - POSTGRESQL_MASTER_PORT_NUMBER=5432
     deploy:
-      replicas: 1 # Можно масштабировать для чтения!
+      replicas: 1                                 # Количество реплик на чтение (можно масштабировать). / Count of read-replicas (scalable).
     depends_on:
-      - postgres-master
+      - postgres-master                           # Локальный маркер зависимости (игнорируется в Swarm). / Local dependency marker (ignored in Swarm).
 
+  # ----------------------------------------------------------------------------
+  # Маршрутизация: Балансировщик Трафика / Routing: Nginx Load Balancer
+  # ----------------------------------------------------------------------------
   load-balancer:
     image: nginx:alpine
-    container_name: nginx_lb
+    container_name: nginx_lb                      # Фиксированное имя контейнера (игнорируется в Swarm). / Static container name (ignored in Swarm).
     networks:
       - app_network
     ports:
-      - "80:80"
+      - "80:80"                                   # Проброс HTTP-порта 80 из кластера на хост-машину. / Binds port 80 from cluster to host machine.
     depends_on:
       - go-server
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro  # :ro добавит режим "только чтение"
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro     # Монтирование конфига в режиме "только чтение". / Mounts configuration in read-only mode.
     restart: unless-stopped
 
+  # ----------------------------------------------------------------------------
+  # Контроль: Оркестратор Скейлинга / Control: Custom Go Autoscaler
+  # ----------------------------------------------------------------------------
   autoscaler:
     build: ./autoscaler
     image: my-autoscaler:latest
     networks:
       - app_network
     ports:
-      - "8888:8888"  # Пробрасываем порт наружу
+      - "8888:8888"                               # Проброс порта веб-сервера для приема вебхуков алертинга. / Exposes port to receive alerting webhooks.
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock # Проброс сокета для прямого управления Docker Swarm API. / Mounts socket to manage Docker Swarm API.
     deploy:
       placement:
         constraints:
-          - node.role == manager
+          - node.role == manager                  # Скейлеру необходимы права менеджера кластера. / Scaler requires cluster manager privileges.
 
+  # ----------------------------------------------------------------------------
+  # Мониторинг: Сборщик Метрик / Monitoring: Prometheus TSDB
+  # ----------------------------------------------------------------------------
   prometheus:
     image: prom/prometheus
     networks:
       - app_network
     ports:
-      - "9090:9090"  # Добавьте эту строку
+      - "9090:9090"                               # Проброс веб-интерфейса Prometheus. / Exposes Prometheus web UI dashboard.
     configs:
-      - source: prom_conf
+      - source: prom_conf                         # Использование Swarm Configs вместо прямого маппинга файлов. / Using Swarm Configs instead of file mounts.
         target: /etc/prometheus/prometheus.yml
       - source: prom_alerts
         target: /etc/prometheus/alerts.yml
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--config.file=/etc/prometheus/prometheus.yml' # Переопределение флага конфигурации. / Overrides internal configuration file path flag.
     deploy:
       replicas: 1
 
+  # ----------------------------------------------------------------------------
+  # Мониторинг: Маршрутизатор Оповещений / Monitoring: Alertmanager
+  # ----------------------------------------------------------------------------
   alertmanager:
     image: prom/alertmanager
     networks:
@@ -119,6 +158,10 @@ services:
         target: /etc/alertmanager/alertmanager.yml
     deploy:
       replicas: 1
+
+  # ----------------------------------------------------------------------------
+  # Хранилище: Кэш в Оперативной Памяти / Storage: Redis Memory Cache
+  # ----------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
     networks:
@@ -127,40 +170,50 @@ services:
       replicas: 1
       restart_policy:
         condition: any
-    # Если захочешь, чтобы кэш сохранялся после перезагрузки:
     volumes:
-     - redis_data:/data
+     - redis_data:/data                           # Сохранение дампов кэша Redis на диске. / Persists Redis cache memory dumps on disk.
 
+  # ----------------------------------------------------------------------------
+  # Визуализация: Панели Аналитики / Visualization: Grafana Analytics
+  # ----------------------------------------------------------------------------
   grafana:
     image: grafana/grafana-oss:latest
     networks:
       - app_network
     ports:
-      - "3000:3000"
+      - "3000:3000"                               # Проброс веб-интерфейса Grafana. / Exposes Grafana analytics web panel dashboard.
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin # Пароль для входа
+      - GF_SECURITY_ADMIN_PASSWORD=admin
     deploy:
       replicas: 1
       placement:
         constraints: [node.role == manager]
 
+  # ----------------------------------------------------------------------------
+  # Шина Данных: Распределенный Лог / Message Bus: Distributed Commits Log
+  # ----------------------------------------------------------------------------
   kafka:
     image: apache/kafka:3.7.0
     networks:
       - app_network
     environment:
-      - KAFKA_NODE_ID=1
-      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_NODE_ID=1                           # Уникальный ID брокера в топологии кластера. / Unique broker ID in cluster topology.
+      - KAFKA_PROCESS_ROLES=broker,controller     # Совмещение ролей брокера и KRaft-контроллера на одной ноде. / Combines broker and KRaft controller roles.
       - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093 # Настройка кворума для KRaft без Zookeeper. / Configures quorum voters for Zookeeperless KRaft.
       - KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
-      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092 # Внешний адрес брокера, доступный клиентам. / Network host accessible by Kafka clients.
       - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      # Строгие лимиты для корректной работы транзакций Exactly-Once на одной ноде.
+      # Strict configuration overrides for Single-Node Exactly-Once transactions compatibility.
       - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
       - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
       - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
       - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
 
+  # ----------------------------------------------------------------------------
+  # Утилиты: Инициализатор Структуры / Utilities: Kafka Topic Bootstrapper
+  # ----------------------------------------------------------------------------
   kafka-init:
     image: apache/kafka:3.7.0
     networks:
@@ -175,8 +228,11 @@ services:
       echo 'Topic events created!';"
     deploy:
       restart_policy:
-        condition: on-failure # Если упадет, пока Kafka грузится — перезапустится
+        condition: on-failure                     # Перезапускается до тех пор, пока топик не будет успешно создан. / Retries loop execution until topic is ready.
 
+  # ----------------------------------------------------------------------------
+  # Слой Приложения / Application Layer: Transactional Kafka Producer
+  # ----------------------------------------------------------------------------
   producer:
       build: ./producer
       image: my-producer:latest
@@ -184,24 +240,33 @@ services:
         - app_network
       environment:
         - KAFKA_BROKER=kafka:9092
-        - TRANSACTIONAL_ID=producer-1
+        - TRANSACTIONAL_ID=producer-1              # Фиксированный ID для защиты транзакций от зомби-процессов. / Static ID used for fencing zombie instances.
       deploy:
         replicas: 1
       depends_on:
         - kafka
 
+# ==============================================================================
+# ТОМА ДАННЫХ КЛАСТЕРА / GLOBAL VOLUMES DEFINITIONS
+# ==============================================================================
 volumes:
-  postgres_master_data:
-  redis_data:
+  postgres_master_data:                           # Физический диск для мастер-базы. / Disk storage allocation for master database.
+  redis_data:                                     # Физический диск для кэша Redis. / Disk storage allocation for Redis memory snapshots.
 
+# ==============================================================================
+# СЕТЕВАЯ ТОПОЛОГИЯ / GLOBAL NETWORKS DEFINITIONS
+# ==============================================================================
 networks:
   app_network:
-    driver: overlay
-    attachable: true
+    driver: overlay                               # Оверлейный драйвер сети для связи контейнеров на разных нодах Swarm. / Cross-node internal overlay driver.
+    attachable: true                              # Разрешает ручное подключение внешних standalone-контейнеров к сети. / Allows external standalone containers manual connection.
 
+# ==============================================================================
+# ОБЪЕКТЫ КОНФИГУРАЦИЙ SWARM / SWARM CONFIGS MANAGEMENT
+# ==============================================================================
 configs:
   prom_conf:
-    file: ./prometheus.yml
+    file: ./prometheus.yml                       # Загрузка локального файла конфигурации в базу данных Swarm. / Distributes local file to Swarm storage.
   prom_alerts:
     file: ./alerts.yml
   alert_conf:
