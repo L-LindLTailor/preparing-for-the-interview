@@ -1,11 +1,11 @@
 # Проектирование ограничителя трафика / designing a traffic limiter.
 
 ## Реализовано несколько алгоритмов:
-* [счетчик скользящих интервалов (sliding window counter)](#счетчик-скользящих-интервалов-sliding-window-counter);
-* [алгоритм дырявого ведра (leaking bucket)](#алгоритм-дырявого-ведра-leaking-bucket);
-* [счетчик фиксированных интервалов (fixed window counter)](#счетчик-фиксированных-интервалов-fixed-window-counter);
-* [алгоритм маркерной корзины (token bucket)](#алгоритм-маркерной-корзины-token-bucket);
-* [журнал скользящих интервалов (sliding window log)](#журнал-скользящих-интервалов-sliding-window-log).
+* [счетчик скользящих интервалов (sliding window counter)](#счетчик-скользящих-интервалов-sliding-window-counter). [Ссылка на раздел / Link to the section"](sliding-window-counter/);
+* [алгоритм дырявого ведра (leaking bucket)](#алгоритм-дырявого-ведра-leaking-bucket). [Ссылка на раздел / Link to the section"](leaking-bucket/);
+* [счетчик фиксированных интервалов (fixed window counter)](#счетчик-фиксированных-интервалов-fixed-window-counter). [Ссылка на раздел / Link to the section"](fixed-window-counter/);
+* [алгоритм маркерной корзины (token bucket)](#алгоритм-маркерной-корзины-token-bucket). [Ссылка на раздел / Link to the section"](token-bucket/);
+* [журнал скользящих интервалов (sliding window log)](#журнал-скользящих-интервалов-sliding-window-log). [Ссылка на раздел / Link to the section"](sliding-window-log/).
 
 ## Счетчик скользящих интервалов (sliding window counter)
 
