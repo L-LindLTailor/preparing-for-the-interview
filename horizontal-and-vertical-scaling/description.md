@@ -2,10 +2,10 @@
 ### Данный проект демонстрирует реализацию отказоустойчивой и горизонтально, вертикально масштабируемой архитектуры на базе Docker Swarm.
 ### This project demonstrates the implementation of a fault-tolerant and horizontally scalable architecture based on Docker Swarm.
 
-## 1. Диаграмма архитектуры / Architecture Diagram (Mermaid)
+## Диаграмма архитектуры / Architecture Diagram (Mermaid)
 ![Компьютер](image/diagram-of-the-overall-architecture.png)
 
-## 2. Компоненты системы / System Components
+## Компоненты системы / System Components
 
 ## Балансировка нагрузки / Load Balancing (Nginx) используется как входная точка (Reverse Proxy)
 
@@ -69,9 +69,9 @@
 
 # By default (starting from Go 1.5), Go runtime automatically sets this value to the number of available logical processor cores on the host machine. But it can be changed dynamically right during the operation of the application (in runtime).However, when working in Docker containers, there are critical engineering nuances that are often asked about in Senior interviews.
 
-## Главная ловушка Docker + GOMAXPROCS (Crucial Interview Topic)Когда вы запускаете Go-сервер в Docker Swarm и ставите вертикальный лимит ресурсов:
+## Главная ловушка Docker + GOMAXPROCS (Crucial Interview Topic). Когда вы запускаете Go-сервер в Docker Swarm и ставите вертикальный лимит ресурсов:
 
-## The main trap of Docker + GOMAXPROCS (Crucial Interview Topic)When you run a Go server in Docker Swarm and set a vertical resource limit:
+## The main trap of Docker + GOMAXPROCS (Crucial Interview Topic). When you run a Go server in Docker Swarm and set a vertical resource limit:
 
 ```yaml
 resources:
@@ -88,7 +88,9 @@ resources:
 ### Результат: возникает жуткий CPU Throttling. Потоки Go постоянно переключаются (Context Switch), тратя драгоценное время на конкуренцию друг с другом в рамках урезанного лимита. Производительность (RPS) падает, а задержки (Latency) растут.
 ### Result: terrible CPU Throttling occurs. Go streams are constantly switching (Context Switch), wasting valuable time competing with each other within a reduced limit. Performance (RPS) is falling, and Latency is increasing.
 
-## Как это решается на практике (Библиотека от Uber)В реальном продакшене никто не меняет GOMAXPROCS вручную через HTTP-запросы. Вместо этого используют библиотеку automaxprocs от компании Uber.Она автоматически и динамически считывает лимиты из контрольных групп Linux (cgroups), под которые Docker загоняет контейнер, и сама выставляет правильный GOMAXPROCS в рантайме.
+## Как это решается на практике (Библиотека от Uber). В реальном продакшене никто не меняет GOMAXPROCS вручную через HTTP-запросы. Вместо этого используют библиотеку automaxprocs от компании Uber. Она автоматически и динамически считывает лимиты из контрольных групп Linux (cgroups), под которые Docker загоняет контейнер, и сама выставляет правильный GOMAXPROCS в рантайме.
+
+## How this is solved in practice (Library from Uber). In real production, no one changes GOMAXPROCS manually via HTTP requests. Instead, they use the automaxprocs library from Uber. It automatically and dynamically reads the limits from the Linux control groups (cgroups), under which Docker drives the container, and sets the correct GOMAXPROCS in runtime itself.
 
 ### Всё, что нужно сделать в вашем main.go:
 ### Everything you need to do in your main.go:
@@ -105,10 +107,14 @@ func main() {
 }
 ```
 
-## Динамическое управление потоками / Dynamic Thread Management (GOMAXPROCS)Оптимизация под cgroups: использование рантайм-конфигурации runtime.GOMAXPROCS (через интеграцию uber-go/automaxprocs) позволяет Go-серверу динамически адаптировать внутренний планировщик под вертикальные лимиты контейнера Docker, предотвращая избыточное переключение контекста (Context Switching) и CPU Throttling.- Cgroups Optimization: utilizing runtime.GOMAXPROCS runtime configuration (via uber-go/automaxprocs integration) allows the Go server to dynamically adapt its internal scheduler to Docker container vertical limits, preventing excessive context switching and CPU throttling.
+## Динамическое управление потоками / Dynamic Thread Management (GOMAXPROCS).
+### Оптимизация под cgroups: использование рантайм-конфигурации runtime.GOMAXPROCS (через интеграцию uber-go/automaxprocs) позволяет Go-серверу динамически адаптировать внутренний планировщик под вертикальные лимиты контейнера Docker, предотвращая избыточное переключение контекста (Context Switching) и CPU Throttling.
+
+### Cgroups Optimization: utilizing runtime.GOMAXPROCS runtime configuration (via uber-go/automaxprocs integration) allows the Go server to dynamically adapt its internal scheduler to Docker container vertical limits, preventing excessive context switching and CPU throttling.
 
 
-## Для лучшего понимания, систему нужно запустить и разобраться в коде! For a better understanding, you need to run the system and understand the code!
+## Для лучшего понимания, систему нужно запустить и разобраться в коде!
+## For a better understanding, you need to run the system and understand the code!
 
 ## Полезные команды/Useful commands:
 
@@ -125,16 +131,24 @@ docker stack deploy -c docker-compose.yaml my_stack
 docker stack rm my_stack
 ```
 
-## 4. Шпаргалка команд терминала / CLI Cheat SheetТестирование нагрузки и автоскейлинга / Load & Autoscaling TestingДля запуска нагрузочного теста используйте утилиту Apache Benchmark (ab). Тест нужно запускать изнутри контейнера балансировщика, чтобы исключить сетевые ограничения хост-машины Windows (WSL2).To run the load test, use the Apache Benchmark (ab) tool. The test must be executed inside the load balancer container to bypass Windows host (WSL2) network bottlenecks.Поиск ID контейнера Nginx / Find the Nginx container ID:
+## Шпаргалка команд терминала / CLI Cheat Sheet
+
+### Тестирование нагрузки и автоскейлинга / Load & Autoscaling TestingДля запуска нагрузочного теста используйте утилиту Apache Benchmark (ab). Тест нужно запускать изнутри контейнера балансировщика, чтобы исключить сетевые ограничения хост-машины Windows (WSL2).
+
+### To run the load test, use the Apache Benchmark (ab) tool. The test must be executed inside the load balancer container to bypass Windows host (WSL2) network bottlenecks.Поиск ID контейнера Nginx / Find the Nginx container ID:
+
 ```Terminal
 docker ps | grep load-balancer
 ```
+
 ### Вход внутрь контейнера / Enter the container shell:
+
 ```Terminal
 docker exec -it <CONTAINER_ID> sh
 ```
 
 ### Установка утилиты ab (только при первом входе) / Install ab tool (first time only):
+
 ```Terminal
 apk add --no-cache apache2-utils
 ```
@@ -160,6 +174,7 @@ while($true) { clear; docker service ls; Start-Sleep -Seconds 2 }
 ```Terminal
 docker service ps my_stack_go-server
 ```
+
 ### (Позволяет увидеть, в каком состоянии находятся новые реплики: Preparing, Starting или Running).(Allows you to see the exact state of new replicas: Preparing, Starting, or Running).
 
 ### Анализ логов компонентов / Component Logs AnalysisКоманды для проверки работы транзакционной шины данных и пулов соединений.Commands to verify the transactional data bus and connection pool operations.Проверка Exactly-Once логов Продюсера / Verify Producer's Exactly-Once logs:
