@@ -131,93 +131,91 @@ docker stack deploy -c docker-compose.yaml my_stack
 docker stack rm my_stack
 ```
 
-## Шпаргалка команд терминала / CLI Cheat Sheet
+# Шпаргалка команд терминала / CLI Cheat Sheet
 
-### Тестирование нагрузки и автоскейлинга / Load & Autoscaling TestingДля запуска нагрузочного теста используйте утилиту Apache Benchmark (ab). Тест нужно запускать изнутри контейнера балансировщика, чтобы исключить сетевые ограничения хост-машины Windows (WSL2).
+## Тестирование нагрузки и автоскейлинга / Load & Autoscaling Testing
+### Для запуска нагрузочного теста используйте утилиту Apache Benchmark (ab). Тест нужно запускать изнутри контейнера балансировщика, чтобы исключить сетевые ограничения хост-машины Windows (WSL2).
+### To run the load test, use the Apache Benchmark (ab) tool. The test must be executed inside the load balancer container to bypass Windows host (WSL2) network bottlenecks.
 
-### To run the load test, use the Apache Benchmark (ab) tool. The test must be executed inside the load balancer container to bypass Windows host (WSL2) network bottlenecks.Поиск ID контейнера Nginx / Find the Nginx container ID:
-
+## Поиск ID контейнера Nginx / Find the Nginx container ID:
 ```Terminal
 docker ps | grep load-balancer
 ```
 
-### Вход внутрь контейнера / Enter the container shell:
-
-```Terminal
+## Вход внутрь контейнера / Enter the container shell:
+```Terminal 
 docker exec -it <CONTAINER_ID> sh
 ```
 
-### Установка утилиты ab (только при первом входе) / Install ab tool (first time only):
-
+## Установка утилиты ab (только при первом входе) / Install ab tool (first time only):
 ```Terminal
 apk add --no-cache apache2-utils
 ```
-
 ### Запуск теста на 500,000 запросов / Run 500,000 requests test:
-
 ```Terminal
 ab -n 500000 -c 100 http://localhost/
 ```
-
-### Мониторинг кластера в реальном времени / Real-Time Cluster MonitoringИспользуйте эти команды в терминале вашей хост-машины (Windows/Linux) во время проведения теста, чтобы отслеживать реакцию системы.Use these commands in your host terminal (Windows/Linux) during the test to monitor the system's response.Отслеживание изменения количества реплик / Track replica count changes:
-
+## Мониторинг кластера в реальном времени / Real-Time Cluster Monitoring
+### Используйте эти команды в терминале вашей хост-машины (Windows/Linux) во время проведения теста, чтобы отслеживать реакцию системы.
+### Use these commands in your host terminal (Windows/Linux) during the test to monitor the system's response.Отслеживание изменения количества реплик / Track replica count changes:
 ```Terminal
 # Для Linux/macOS (автообновление каждые 2 секунды)
 watch docker service ls
 
 # Для Windows (PowerShell alternative)
 while($true) { clear; docker service ls; Start-Sleep -Seconds 2 }
-
 ```
-### Просмотр детального состояния задач сервиса / View detailed service task states:
 
+## Просмотр детального состояния задач сервиса / View detailed service task states:
 ```Terminal
 docker service ps my_stack_go-server
 ```
-
 ### (Позволяет увидеть, в каком состоянии находятся новые реплики: Preparing, Starting или Running).(Allows you to see the exact state of new replicas: Preparing, Starting, or Running).
 
-### Анализ логов компонентов / Component Logs AnalysisКоманды для проверки работы транзакционной шины данных и пулов соединений.Commands to verify the transactional data bus and connection pool operations.Проверка Exactly-Once логов Продюсера / Verify Producer's Exactly-Once logs:
+## Анализ логов компонентов / Component Logs Analysis
+### Команды для проверки работы транзакционной шины данных и пулов соединений.Commands to verify the transactional data bus and connection pool operations. 
 
+### Проверка Exactly-Once логов Продюсера / Verify Producer's Exactly-Once logs:
 ```Terminal
 docker service logs -f my_stack_producer
 ```
-
 ### Проверка распределения чтения/записи в Go / Check Read/Write distribution in Go:
-
 ```Terminal
 docker service logs -f my_stack_go-server
 ```
 
-### (Ищите строки [MASTER] Connected, [SLAVE] Connected и сообщения из кэша/базы).(Look for [MASTER] Connected, [SLAVE] Connected lines, and cache/DB data source origins).Просмотр состояния репликации Postgres / View Postgres replication status:
+### (Ищите строки [MASTER] Connected, [SLAVE] Connected и сообщения из кэша/базы).
+### (Look for [MASTER] Connected, [SLAVE] Connected lines, and cache/DB data source origins). 
+
 ### Просмотр состояния репликации Postgres / View Postgres replication status:
 
 ```Terminal
 docker service logs -f my_stack_postgres-slave
 ```
 
-### (Убедитесь, что Slave успешно подключился к Master в режиме стриминга).(Ensure the Slave has successfully connected to the Master in streaming mode).
+### (Убедитесь, что Slave успешно подключился к Master в режиме стриминга).
+### (Ensure the Slave has successfully connected to the Master in streaming mode).
+## Проверка инфраструктуры Kafka / Kafka Infrastructure Verification
 
-```Terminal
-docker service logs -f my_stack_postgres-slave
-```
-
-### Проверка инфраструктуры Kafka / Kafka Infrastructure VerificationПросмотр конфигурации топика и количества партиций / Describe topic configuration and partition counts:
+### Просмотр конфигурации топика и количества партиций / Describe topic configuration and partition counts:
 
 ```Terminal
 docker exec -it $(docker ps -qf "name=my_stack_kafka") /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --describe --topic events
 ```
 
-### (Используйте эту команду до и во время теста, чтобы увидеть, как autoscaler динамически увеличивает параметр PartitionCount со старта с 3 партиций).(Use this command before and during the test to observe the autoscaler dynamically increasing the PartitionCount starting from 3 partitions).
+### (Используйте эту команду до и во время теста, чтобы увидеть, как autoscaler динамически увеличивает параметр PartitionCount со старта с 3 партиций).
+### (Use this command before and during the test to observe the autoscaler dynamically increasing the PartitionCount starting from 3 partitions).
 
-### Очистка зависших задач и диагностика ошибок / Troubleshooting & CleanupЕсли сервис завис в состоянии 0/1 и логи не отображаются, Swarm отклонил задачу на этапе создания. Проверьте истинную причину ошибки (например, отсутствие образа или проблемы с правами на тома).If a service is stuck at 0/1 and shows no logs, Swarm rejected the task during creation. Check the root cause of the failure (e.g., missing image or volume permission issues).Просмотр системных ошибок Swarm / View Swarm system errors:
+## Очистка зависших задач и диагностика ошибок / Troubleshooting & Cleanup
+### Если сервис завис в состоянии 0/1 и логи не отображаются, Swarm отклонил задачу на этапе создания. Проверьте истинную причину ошибки (например, отсутствие образа или проблемы с правами на тома).
+### If a service is stuck at 0/1 and shows no logs, Swarm rejected the task during creation. Check the root cause of the failure (e.g., missing image or volume permission issues).
 
+### Просмотр системных ошибок Swarm / View Swarm system errors:
 ```Terminal
 docker service ps --no-trunc my_stack_kafka
 ```
 
 ### Принудительный перезапуск сервиса без обновления кода / Force service restart without code updates:
-
 ```Terminal
 docker service update --force my_stack_autoscaler
 ```
