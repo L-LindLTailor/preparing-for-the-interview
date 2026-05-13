@@ -170,10 +170,12 @@ while($true) { clear; docker service ls; Start-Sleep -Seconds 2 }
 ```Terminal
 docker service ps my_stack_go-server
 ```
-### (Позволяет увидеть, в каком состоянии находятся новые реплики: Preparing, Starting или Running).(Allows you to see the exact state of new replicas: Preparing, Starting, or Running).
+### (Позволяет увидеть, в каком состоянии находятся новые реплики: Preparing, Starting или Running).
+### (Allows you to see the exact state of new replicas: Preparing, Starting, or Running).
 
 ## Анализ логов компонентов / Component Logs Analysis
-### Команды для проверки работы транзакционной шины данных и пулов соединений.Commands to verify the transactional data bus and connection pool operations. 
+### Команды для проверки работы транзакционной шины данных и пулов соединений.
+### Commands to verify the transactional data bus and connection pool operations. 
 
 ### Проверка Exactly-Once логов Продюсера / Verify Producer's Exactly-Once logs:
 ```Terminal
