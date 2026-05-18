@@ -4,11 +4,11 @@ import (
 	"log"
 	"net/http"
 
-	fixedwindowcounter "workout-0/preparing-for-the-interview/designing-a-traffic-limiter/fixed-window-counter"
-	leakingbucket "workout-0/preparing-for-the-interview/designing-a-traffic-limiter/leaking-bucket"
-	slidingwindowcounter "workout-0/preparing-for-the-interview/designing-a-traffic-limiter/sliding-window-counter"
-	slidingwindowlog "workout-0/preparing-for-the-interview/designing-a-traffic-limiter/sliding-window-log"
-	tokenbucket "workout-0/preparing-for-the-interview/designing-a-traffic-limiter/token-bucket"
+	fixedwindowcounter "designing-a-traffic-limiter/fixed-window-counter"
+	leakingbucket "designing-a-traffic-limiter/leaking-bucket"
+	slidingwindowcounter "designing-a-traffic-limiter/sliding-window-counter"
+	slidingwindowlog "designing-a-traffic-limiter/sliding-window-log"
+	tokenbucket "designing-a-traffic-limiter/token-bucket"
 )
 
 var (
