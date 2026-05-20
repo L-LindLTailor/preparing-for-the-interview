@@ -1,0 +1,19 @@
+# Сравнительный анализ распределенных генераторов уникальных идентификаторов
+
+![Компьютер](distributed_id_generator/image/distributed_id_generator.png)
+
+### 1. Репликация с несколькими источниками (Multi-Master Auto-Increment)
+*   **RU:** Метод использует стандартный инкремент баз данных, но с шагом $K$ (количество мастеров). Нода А генерирует нечетные ID, Нода Б — четные. Прост в реализации, не требует сложной логики. Однако масштабирование крайне затруднено: при добавлении нового сервера требуется изменять шаг инкремента на всех существующих узлах кластера, что вызывает простой (Downtime).
+*   **EN:** This methodology exploits standard database auto-increment functionality parameterized with a step offset $K$ (total master nodes count). Node A yields odd integers, while Node B registers even sequences. Simple to implement but introduces scale bottlenecks: expanding the cluster requires real-time modification of the step constant across all active masters, provoking system downtime.
+
+### 2. Универсальный уникальный идентификатор (UUID)
+*   **RU:** 128-битный идентификатор, генерируемый локально без сетевого взаимодействия ($O(1)$ по сети). Обеспечивает абсолютную автономность серверов. Главный минус — размер (16 байт) и хаотичный символьный вид. Строковые UUID немонотонны, их использование в качестве первичных ключей приводит к дикой фрагментации B-Tree индексов в СУБД, замедляя операции записи на диски.
+*   **EN:** A 128-bit identifier calculated completely locally with zero inter-node communication network overhead ($O(1)$ network complexity). Delivers complete autonomous scale. The core disadvantage stems from its payload footprint (16 bytes) and randomized symbol arrangement. Non-monotonic UUID strings degrade index performance by triggering severe B-Tree page fragmentation inside relational database engines during high-throughput storage routines.
+
+### 3. Сервер тикетов (Ticket Server / Centralized Pool)
+*   **RU:** Архитектура (популяризированная инженерами Flickr), использующая выделенный централизованный сервер баз данных для генерации ID. Обеспечивает строгую упорядоченность и компактность числового диапазона. Критический недостаток — появление единой точки отказа (Single Point of Failure). Если сервер тикетов падает, весь распределенный кластер теряет способность регистрировать новые сущности.
+*   **EN:** An architectural model popularized by Flickr engineers that offloads ID provisioning to a dedicated centralized sequence token database. Guarantees tight, highly compact, and strictly ordered numeric values. The structural vulnerability is the introduction of a Single Point of Failure (SPOF). If the ticket hub drops offline, the entire surrounding multi-service grid loses its mutation capabilities.
+
+### 4. Twitter Snowflake ID (Подход «Снежного Кома»)
+*   **RU:** Золотой стандарт высоконагруженных платформ. 64-битное число делится на специализированные зоны. Секция времени (Timestamp) гарантирует монотонный рост и сортируемость ID по времени. Секции дата-центра и сервера исключают коллизии на физическом уровне без координации по сети. Побитовые операции выполняются прямо в регистрах CPU за 1 такт процессора с нулевым выделением памяти (`0 allocs/op`), обеспечивая миллионные объемы генерации в секунду.
+*   **EN:** The gold standard framework for low-latency high-throughput platforms. A single 64-bit integer is segmented into specialized boundaries. The timestamp payload section enforces strict monotonic growth, making records chronologically sortable by default. Infrastructure coordinates (datacenter & machine IDs) eliminate collision windows at the physical layer without network arbitration. Bitwise shifts evaluate inside CPU registers in 1 clock cycle with zero heap overhead (`0 allocs/op`), handling millions of generations per second effortlessly.
