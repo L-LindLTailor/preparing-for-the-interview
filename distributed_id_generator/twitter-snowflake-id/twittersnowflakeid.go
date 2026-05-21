@@ -35,6 +35,7 @@ func NewSnowflakeNode(datacenterID, machineID int64) (*SnowflakeNode, error) {
 	if datacenterID < 0 || datacenterID > maxDatacenterID || machineID < 0 || machineID > maxMachineID {
 		return nil, errors.New("error: infrastructure coordinates out of bounds")
 	}
+
 	return &SnowflakeNode{
 		datacenterID:  datacenterID,
 		machineID:     machineID,
