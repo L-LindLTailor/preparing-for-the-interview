@@ -8,7 +8,7 @@ import (
 
 func main() {
 	fmt.Println("=== ЗАПУСК ПОТОКОБЕЗОПАСНОГО ВЕБ-КРАУЛЕРА ===")
-	fmt.Println("=== LAUNCHING CONCURRENT PRODUCTION-READY WEB CRAWLER ===\n")
+	fmt.Println("=== LAUNCHING CONCURRENT PRODUCTION-READY WEB CRAWLER ===")
 
 	// Создаем краулер: 5 параллельных воркеров, буфер Frontier очереди = 100
 	// Initialize crawler: 5 concurrent workers, Frontier pipeline capacity = 100
