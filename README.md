@@ -5,4 +5,5 @@
 * [storage key-value (хранилище ключ-значение)"](storage-key-value/description.md). [Ссылка на раздел / Link to the section"](storage-key-value/);
 * [distributed id generator (генератор распределенных идентификаторов)"](distributed_id_generator/description.md). [Ссылка на раздел / Link to the section"](distributed_id_generator/);
 * [url shortener (проектирование системы для сокращений URL-адресов)"](url-shortener/description.md). [Ссылка на раздел / Link to the section"](url-shortener/);
-* [web-crawler (поисковой робот)"](web-crawler/description.md). [Ссылка на раздел / Link to the section"](web-crawler/);
+* [web crawler (поисковой робот)"](web-crawler/description.md). [Ссылка на раздел / Link to the section"](web-crawler/);
+* [notification system (система уведомлений)"](notification-system/description.md). [Ссылка на раздел / Link to the section"](notification-system/);
