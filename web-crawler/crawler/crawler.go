@@ -29,6 +29,7 @@ type WebCrawler struct {
 	workerCount  int             // Размер пула воркеров / Worker pool capacity constraint
 	wg           sync.WaitGroup  // Синхронизатор завершения работы / Completion state synchronizer
 	httpClient   *http.Client    // Указатель на синглтон HTTP-клиента для переиспользования TCP-пула / Singleton HTTP client pointer for TCP pool reuse
+	linkRegexp   *regexp.Regexp  // Переиспользуемое скомпилированное регулярное выражение / Reusable pre-compiled regex layout
 }
 
 // NewWebCrawler инициализирует потокобезопасный пул воркеров краулера со сквозным HTTP-клиентом.
@@ -45,6 +46,9 @@ func NewWebCrawler(workerCount, bufferSize int) *WebCrawler {
 		httpClient: &http.Client{
 			Timeout: 3 * time.Second,
 		},
+		// Компилируем регулярное выражение ровно ОДИН раз при создании краулера
+		// Compile the regular expression exactly ONCE upon crawler architecture initialization
+		linkRegexp: regexp.MustCompile(`href="(https?://[^"]+)"`),
 	}
 }
 
@@ -128,6 +132,7 @@ func (c *WebCrawler) shouldCrawl(targetURL string) bool {
 	if err != nil {
 		return false
 	}
+
 	host := u.Host
 
 	// 1. ДЕРЕПЛИКАЦИЯ: Если мы уже скачивали этот URL — игнорируем
@@ -158,6 +163,7 @@ func (c *WebCrawler) releaseHost(targetURL string) {
 	if err != nil {
 		return
 	}
+
 	c.mu.Lock()
 	delete(c.hostRegistry, u.Host)
 	c.mu.Unlock()
@@ -180,11 +186,14 @@ func (c *WebCrawler) fetchAndParse(targetURL string) (Result, []string, error) {
 
 	// Эффективный потоковый парсинг через bufio, чтобы не аллоцировать гигабайты под огромные HTML
 	// Efficient stream parsing via bufio to block massive allocation spikes on giant HTML bodies
-	var links []string
-	re := regexp.MustCompile(`href="(https?://[^"]+)"`)
+	var (
+		links   []string
+		matches [][]string
+
+		titleDetected string
+	)
 
 	scanner := bufio.NewScanner(resp.Body)
-	var titleDetected string
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -195,10 +204,10 @@ func (c *WebCrawler) fetchAndParse(targetURL string) (Result, []string, error) {
 			titleDetected = line
 		}
 
-		matches := re.FindAllStringSubmatch(line, -1)
-		for _, match := range matches {
-			if len(match) > 1 {
-				links = append(links, match[1])
+		matches = c.linkRegexp.FindAllStringSubmatch(line, -1)
+		for matchId := range matches {
+			if len(matches[matchId]) > 1 {
+				links = append(links, matches[matchId][1])
 			}
 		}
 	}
