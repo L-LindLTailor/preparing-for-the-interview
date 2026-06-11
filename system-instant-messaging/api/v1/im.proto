@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package api.v1;
+
+// Инкапсуляция пакета Go для генерации
+// Encapsulation of the Go package for code generation
+option go_package = "preparing-for-the-interview/system-instant-messaging/pb;pb";
+
+import "google/protobuf/timestamp.proto";
+
+// InstantMessagingEngine управляет real-time чатами, историей и статусами присутствия
+// InstantMessagingEngine orchestrates real-time chats, message history, and user presence states
+service InstantMessagingEngine {
+    // 1. Bi-directional Streaming: Двусторонний канал для обмена сообщениями в реальном времени
+    // 1. Bi-directional Streaming: Full-duplex channel for real-time messaging
+    rpc RealTimeChatStream(stream MessageFromClient) returns (stream MessageFromServer);
+
+    // 2. Unary RPC: Запрос истории сообщений кусками по 30 штук (Cursor Пагинация)
+    // 2. Unary RPC: Fetching message history chunks of exactly 30 items (Cursor Pagination)
+    rpc GetChatHistory(HistoryRequest) returns (HistoryResponse);
+
+    // 3. Unary RPC: Запрос статуса активности конкретного пользователя (За последнюю минуту)
+    // 3. Unary RPC: Querying the presence status of a specific user (within the last 1-minute window)
+    rpc GetUserPresence(PresenceRequest) returns (PresenceResponse);
+}
+
+// Пакет, летящий от клиента на сервер при отправке сообщения
+// Payload sent from the client to the server upon message transmission
+message MessageFromClient {
+    string room_id = 1;
+    string text_content = 2; // Жесткий лимит до 1000 символов / Hard limit up to 1000 characters
+    string client_uuid = 3;  // Для дедупликации сессий / For session deduplication
+}
+
+// Пакет, летящий от сервера к клиенту в реальном времени
+// Payload broadcasted from the server to the client in real time
+message MessageFromServer {
+    string message_id = 1;
+    string room_id = 2;
+    string sender_id = 3;
+    string text_content = 4;
+    google.protobuf.Timestamp timestamp = 5;
+    string delivery_status = 6; // DELIVERED, READ
+}
+
+// Запрос истории сообщений кусками по 30 штук
+// Request for chat history in chunks of exactly 30 messages
+message HistoryRequest {
+    string room_id = 1;
+    string cursor_message_id = 2; // ID крайнего сообщения. Если пуст - берем топ-30 свежих / Last known message ID. If empty - fetches top-30 fresh
+    int32 limit = 3;              // Всегда равен 30 по ТЗ / Always hardcoded to 30 per SRS requirements
+}
+
+// Ответ сервера со списком сообщений истории
+// Server response containing the historical message slice
+message HistoryResponse {
+    repeated MessageFromServer messages = 1; // Массив из макс. 30 сообщений / Array of max 30 messages
+    string next_cursor_id = 2;              // Новый курсор для следующей подгрузки / New cursor ID for the next lazy-load iteration
+    bool has_more = 3;                      // Флаг: есть ли сообщения дальше в истории / Flag: indicates if deeper history exists
+}
+
+// Запрос статуса присутствия пользователя
+// Request for user presence state tracking
+message PresenceRequest {
+    string user_id = 1;
+}
+
+// Ответ сервера о статусе активности за последнюю минуту
+// Server response regarding user activity state within the last minute
+message PresenceResponse {
+    string user_id = 1;
+    bool is_online = 2; // true если был пинг за последнюю минуту / true if a heartbeat ping occurred within 60 seconds
+    google.protobuf.Timestamp last_seen_at = 3; // Точный час крайнего визита, если offline / Exact timestamp of the last action if offline
+}

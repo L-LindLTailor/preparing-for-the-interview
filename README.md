@@ -7,3 +7,4 @@
 * [url shortener (проектирование системы для сокращений URL-адресов)"](url-shortener/description.md). [Ссылка на раздел / Link to the section"](url-shortener/);
 * [web crawler (поисковой робот)"](web-crawler/description.md). [Ссылка на раздел / Link to the section"](web-crawler/);
 * [notification system (система уведомлений)"](notification-system/description.md). [Ссылка на раздел / Link to the section"](notification-system/);
+* [system instant messaging (система мгновенного обмена сообщениямиa)"](system-instant-messaging/description.md). [Ссылка на раздел / Link to the section"](system-instant-messaging/);
