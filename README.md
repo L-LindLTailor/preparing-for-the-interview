@@ -8,3 +8,4 @@
 * [web crawler (поисковой робот)"](web-crawler/description.md). [Ссылка на раздел / Link to the section"](web-crawler/);
 * [notification system (система уведомлений)"](notification-system/description.md). [Ссылка на раздел / Link to the section"](notification-system/);
 * [system instant messaging (система мгновенного обмена сообщениямиa)"](system-instant-messaging/description.md). [Ссылка на раздел / Link to the section"](system-instant-messaging/);
+* [automatic search query filling system (система атозаполнения поисковых запросов)"](automatic-search-query-filling-system/description.md). [Ссылка на раздел / Link to the section"](automatic-search-query-filling-system/);
